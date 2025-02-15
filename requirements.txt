@@ -1,0 +1,11 @@
+numpy
+# On Windows include cuda support
+--extra-index-url https://download.pytorch.org/whl/cu124
+# without cuda
+# --extra-index-url https://download.pytorch.org/whl/nightly/cpu
+torch
+imageio
+pillow
+scikit-image
+fire
+matplotlib

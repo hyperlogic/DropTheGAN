@@ -4,6 +4,7 @@ import numpy as np
 import skimage.color
 import skimage.io
 import torch
+import matplotlib.pyplot as plt
 
 
 def to_numpy(tensor: torch.Tensor, clone=True) -> np.ndarray:
@@ -33,3 +34,9 @@ def mask_read(mask_path: str) -> torch.Tensor:
     if mask.ndim == 3:
         mask = mask[0]
     return (mask > 0.5)
+
+
+def imshow(image: torch.Tensor) -> None:
+    image = image.permute(1, 2, 0)
+    image = to_numpy((255 * image).clamp(0, 255).to(dtype=torch.uint8))
+    plt.imshow(image)
