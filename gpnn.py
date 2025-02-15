@@ -11,6 +11,33 @@ _MAX_MEMORY_SIZE = 1 << 30
 _INF = float('inf')
 
 
+def alpha_tile(image: torch.Tensor, border_size: int) -> torch.Tensor:
+    device = image.get_device()
+    _, h, w = image.shape
+    std = border_size
+
+    left_strip = image[:, :, 0].unsqueeze(-1)
+    assert left_strip.shape == (3, h, 1), left_strip.shape
+    left_smear = left_strip.repeat(1, 1, w)
+    assert left_smear.shape == (3, h, w), left_smear.shape
+    left_mask = torch.linspace(0, w, w).to(device)
+    assert left_mask.shape == (w,)
+    left_mask = torch.exp(-((left_mask - w) ** 2) / (2 * std ** 2))
+    left_mask = left_mask.unsqueeze(0).unsqueeze(0).repeat(3, h, 1)
+    left_image = left_smear * left_mask + image * (1 - left_mask)
+
+    top_strip = image[:, 0, :].unsqueeze(1)
+    assert top_strip.shape == (3, 1, w), top_strip.shape
+    top_smear = top_strip.repeat(1, h, 1)
+    assert top_smear.shape == (3, h, w), top_smear.shape
+    top_mask = torch.linspace(0, h, h).to(device)
+    top_mask = torch.exp(-((top_mask - h) ** 2) / (2 * std ** 2))
+    assert top_mask.shape == (h,)
+    top_mask = top_mask.unsqueeze(0).unsqueeze(-1).repeat(3, 1, w)
+
+    return top_smear * top_mask + left_image * (1 - top_mask)
+
+
 def gpnn(pyramid: Sequence[torch.Tensor],
          initial_guess: torch.Tensor,
          downscale_ratio: float = 0.75,
@@ -20,12 +47,16 @@ def gpnn(pyramid: Sequence[torch.Tensor],
          mask_pyramid: Optional[Sequence[torch.Tensor]] = None,
          num_iters_in_level: int = 10,
          num_iters_in_coarsest_level: int = 1,
-         reduce: str = 'weighted_mean') -> torch.Tensor:
+         reduce: str = 'weighted_mean',
+         tile_border_size: int = 0) -> torch.Tensor:
     if output_pyramid_shape is None:
         output_pyramid_shape = [image.shape for image in pyramid]
     if mask_pyramid is None:
         mask_pyramid = [None] * len(pyramid)
     generated = initial_guess
+    if tile_border_size > 0:
+        generated = alpha_tile(generated, tile_border_size)
+
     coarsest_level = len(pyramid) - 1
     for level in range(coarsest_level, -1, -1):
         if level == coarsest_level:
@@ -37,6 +68,9 @@ def gpnn(pyramid: Sequence[torch.Tensor],
                                 patch_size=patch_size,
                                 alpha=alpha,
                                 reduce=reduce)
+                if tile_border_size > 0 and i == 0:
+                    generated = alpha_tile(generated, tile_border_size)
+
         else:
             blurred = resize_right.resize(pyramid[level + 1],
                                           1 / downscale_ratio,
@@ -49,9 +83,14 @@ def gpnn(pyramid: Sequence[torch.Tensor],
                                 patch_size=patch_size,
                                 alpha=alpha,
                                 reduce=reduce)
+                if tile_border_size > 0 and i == 0:
+                    generated = alpha_tile(generated, tile_border_size)
+
+
         if level > 0:
             generated = resize_right.resize(generated, 1 / downscale_ratio,
                                             output_pyramid_shape[level - 1])
+
     return generated
 
 

@@ -109,3 +109,21 @@ def retargeting(image: torch.Tensor,
                      patch_size=patch_size,
                      reduce=reduce,
                      num_iters_in_coarsest_level=10)
+
+def tile(image: torch.Tensor,
+         alpha: float = 5e-3,
+         patch_size: int = 7,
+         downscale_ratio: float = 0.75,
+         num_levels: int = 5,
+         reduce: str = 'weighted_mean',
+         tile_border_size: int = 4) -> torch.Tensor:
+
+    pyramid = gpnn.make_pyramid(image, num_levels, downscale_ratio)
+    initial_guess = pyramid[-1]
+    return gpnn.gpnn(pyramid,
+                     initial_guess,
+                     alpha=alpha,
+                     downscale_ratio=downscale_ratio,
+                     patch_size=patch_size,
+                     reduce=reduce,
+                     tile_border_size=tile_border_size)
